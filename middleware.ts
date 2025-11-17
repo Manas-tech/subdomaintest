@@ -1,5 +1,36 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { rootDomain } from '@/lib/utils';
+
+function getRootDomain(hostname: string): string {
+  // Local development
+  if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+    return 'localhost:3000';
+  }
+
+  // Vercel preview deployments (tenant---branch-name.vercel.app)
+  if (hostname.includes('---') && hostname.endsWith('.vercel.app')) {
+    const parts = hostname.split('---');
+    return parts.length > 1 ? parts[parts.length - 1] : hostname;
+  }
+
+  // Vercel production domain (subdomaintesttrial.vercel.app)
+  if (hostname.endsWith('.vercel.app') && !hostname.includes('---')) {
+    return hostname;
+  }
+
+  // Custom domain (coffeenchat.me)
+  if (hostname.endsWith('.coffeenchat.me')) {
+    return 'coffeenchat.me';
+  }
+
+  // Fallback: try to detect root domain from environment variable
+  const envRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  if (envRootDomain) {
+    return envRootDomain.split(':')[0];
+  }
+
+  // Default fallback
+  return hostname;
+}
 
 function extractSubdomain(request: NextRequest): string | null {
   const url = request.url;
@@ -22,8 +53,8 @@ function extractSubdomain(request: NextRequest): string | null {
     return null;
   }
 
-  // Production environment
-  const rootDomainFormatted = rootDomain.split(':')[0];
+  // Get root domain dynamically
+  const rootDomainFormatted = getRootDomain(hostname);
 
   // Handle preview deployment URLs (tenant---branch-name.vercel.app)
   if (hostname.includes('---') && hostname.endsWith('.vercel.app')) {
@@ -31,7 +62,19 @@ function extractSubdomain(request: NextRequest): string | null {
     return parts.length > 0 ? parts[0] : null;
   }
 
-  // Regular subdomain detection
+  // Regular subdomain detection for custom domain
+  if (hostname.endsWith('.coffeenchat.me')) {
+    // Check if it's the root domain itself
+    if (hostname === 'coffeenchat.me' || hostname === 'www.coffeenchat.me') {
+      return null;
+    }
+    const subdomain = hostname.replace('.coffeenchat.me', '');
+    if (subdomain && subdomain !== 'www') {
+      return subdomain;
+    }
+  }
+
+  // Regular subdomain detection for other domains
   const isSubdomain =
     hostname !== rootDomainFormatted &&
     hostname !== `www.${rootDomainFormatted}` &&

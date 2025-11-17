@@ -4,7 +4,8 @@ import { redis } from '@/lib/redis';
 import { isValidIcon } from '@/lib/subdomains';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { rootDomain, protocol } from '@/lib/utils';
+import { headers } from 'next/headers';
+import { protocol } from '@/lib/utils';
 
 export async function createSubdomainAction(
   prevState: any,
@@ -54,6 +55,24 @@ export async function createSubdomainAction(
     emoji: icon,
     createdAt: Date.now()
   });
+
+  // Get the current host to determine the root domain
+  const headersList = await headers();
+  const host = headersList.get('host') || '';
+  const hostname = host.split(':')[0];
+  
+  // Determine root domain for subdomain redirect
+  // In production, always use coffeenchat.me for subdomains (wildcard domain)
+  // In development, use localhost
+  let rootDomain = 'localhost:3000';
+  if (process.env.NODE_ENV === 'production') {
+    // Use the wildcard domain for subdomains
+    rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'coffeenchat.me';
+  } else if (hostname.includes('localhost')) {
+    rootDomain = 'localhost:3000';
+  } else if (process.env.NEXT_PUBLIC_ROOT_DOMAIN) {
+    rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN.split(':')[0];
+  }
 
   redirect(`${protocol}://${sanitizedSubdomain}.${rootDomain}`);
 }
